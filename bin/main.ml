@@ -42,9 +42,13 @@ let diagnostics (_state : state_after_processing) : Lsp.Types.Diagnostic.t list
    so that users only need to override methods that they want the server to
    actually meaningfully interpret and respond to.
 *)
-class lsp_server ~(sw : Eio.Switch.t) =
+class lsp_server ~env ~(sw : Eio.Switch.t) =
   object (self)
-    inherit Linol_eio.Jsonrpc2.server
+    inherit Linol_eio.Jsonrpc2.server as super
+
+    method! config_modify_capabilities capabilities =
+      let capabilities = super#config_modify_capabilities capabilities in
+      { capabilities with definitionProvider = Some (`Bool true) }
 
     (* one env per document *)
     val buffers : (Lsp.Types.DocumentUri.t, state_after_processing) Hashtbl.t =
@@ -80,6 +84,29 @@ class lsp_server ~(sw : Eio.Switch.t) =
     method on_notif_doc_did_close ~notify_back:_ d : unit Linol_eio.t =
       Hashtbl.remove buffers d.uri;
       ()
+
+    method! on_req_definition ~notify_back:_ ~id:_ ~uri ~pos ~workDoneToken:_
+        ~partialResultToken:_ doc_state =
+      let prompt =
+        Format.sprintf
+          {|Hello AI. The user has cursor at position %s and called the "definition" lsp request. The buffer %s has content:
+
+```ocaml
+"%s
+```
+
+Please output in LSP json format the answer to the query, without anything else in the response. Do not wrap it in Markdown code block as I'm parsing the answer as json directly.|}
+          (pos |> Linol_eio.Position.yojson_of_t |> Yojson.Safe.to_string)
+          (uri |> Linol_eio.DocumentUri.to_string)
+          doc_state.content
+      in
+      match Clode.request env prompt with
+      | Error _ -> None
+      | Ok res ->
+          Format.eprintf "Answer from model: %s\n%!" res;
+          let json = Yojson.Safe.from_string res in
+          let res = Linol_eio.Locations.t_of_yojson json in
+          Some res
   end
 
 (* Main code
@@ -88,7 +115,7 @@ class lsp_server ~(sw : Eio.Switch.t) =
 let run () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  let s = new lsp_server ~sw in
+  let s = new lsp_server ~env ~sw in
   let server = Linol_eio.Jsonrpc2.create_stdio ~env s in
   let task () =
     let shutdown () = s#get_status = `ReceivedExit in

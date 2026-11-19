@@ -1,0 +1,37 @@
+(lang dune 3.0)
+
+(name claude-api)
+
+(generate_opam_files true)
+
+(license ISC)
+
+(package
+ (name claude-api)
+ (synopsis "OCaml bindings to the Claude API (Anthropic Messages API)")
+ (description
+  "Typed OCaml interface to the Claude Messages API: requests, responses, streaming (SSE), tool use and token counting. The core library is I/O-agnostic; claude-api.eio and claude-api.lwt provide HTTPS clients built on Eio (cohttp-eio) and Lwt (cohttp-lwt-unix).")
+ (depends
+  (ocaml
+   (>= 5.1))
+  (yojson
+   (>= 2.0))
+  (eio
+   (>= 1.0))
+  (eio_main
+   (>= 1.0))
+  (cohttp-eio
+   (>= 6.0))
+  (tls-eio
+   (>= 1.0))
+  (ca-certs
+   (>= 1.0))
+  (mirage-crypto-rng
+   (>= 1.0))
+  (domain-name
+   (>= 0.4))
+  (lwt
+   (>= 5.6))
+  (cohttp-lwt-unix
+   (>= 6.0))
+  (alcotest :with-test)))

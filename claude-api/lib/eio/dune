@@ -1,0 +1,15 @@
+(library
+ (name claude_eio)
+ (public_name claude-api.eio)
+ (libraries
+  claude-api
+  yojson
+  eio
+  cohttp-eio
+  http
+  uri
+  tls
+  tls-eio
+  ca-certs
+  domain-name
+  mirage-crypto-rng.unix))

@@ -1,0 +1,3 @@
+(executables
+ (names hello stream tools chat)
+ (libraries claude-api claude-api.eio eio_main yojson))

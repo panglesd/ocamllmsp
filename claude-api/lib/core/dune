@@ -1,0 +1,4 @@
+(library
+ (name claude)
+ (public_name claude-api)
+ (libraries yojson))

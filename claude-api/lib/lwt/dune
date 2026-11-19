@@ -1,0 +1,4 @@
+(library
+ (name claude_lwt)
+ (public_name claude-api.lwt)
+ (libraries claude-api yojson lwt lwt.unix cohttp-lwt cohttp-lwt-unix http uri))

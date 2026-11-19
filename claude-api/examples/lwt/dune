@@ -1,0 +1,3 @@
+(executables
+ (names hello_lwt stream_lwt tools_lwt)
+ (libraries claude-api claude-api.lwt lwt lwt.unix yojson))
