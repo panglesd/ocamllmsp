@@ -17,6 +17,11 @@
 
 module Lsp = Linol.Lsp
 
+let string_to_lines s =
+  s |> String.split_on_char '\n'
+  |> List.mapi (Format.sprintf "%i|%s")
+  |> String.concat "\n"
+
 let diagnostics _state : Lsp.Types.Diagnostic.t list =
   let range =
     let start = Linol_eio.Position.create ~character:2 ~line:1 in
@@ -59,8 +64,24 @@ class lsp_server ~env ~(sw : Eio.Switch.t) =
     method private _on_doc ~(notify_back : Linol_eio.Jsonrpc2.notify_back)
         (uri : Lsp.Types.DocumentUri.t) (contents : string) =
       Hashtbl.replace buffers uri contents;
-      let diags = diagnostics () in
-      notify_back#send_diagnostic diags
+      let prompt =
+        Format.sprintf
+          {|Hello AI. The user has requested a review for the file %s, through the "diagnostics" lsp request. The buffer has content:
+
+```ocaml
+"%s
+```
+
+Please output in LSP json format the answer to the query, without anything else in the response.|}
+          (uri |> Linol_eio.DocumentUri.to_string)
+          (string_to_lines contents)
+      in
+      match Clode.request_list env prompt with
+      | Error _ -> ()
+      | Ok res ->
+          let json = List.map Yojson.Safe.from_string res in
+          let res = List.map Linol_eio.Diagnostic.t_of_yojson json in
+          notify_back#send_diagnostic res
 
     (* We now override the [on_notify_doc_did_open] method that will be called
        by the server each time a new document is opened. *)
@@ -92,7 +113,7 @@ class lsp_server ~env ~(sw : Eio.Switch.t) =
 Please output in LSP json format the answer to the query, without anything else in the response. Do not wrap it in Markdown code block as I'm parsing the answer as json directly.|}
           (pos |> Linol_eio.Position.yojson_of_t |> Yojson.Safe.to_string)
           (uri |> Linol_eio.DocumentUri.to_string)
-          doc_state.content
+          (string_to_lines doc_state.content)
       in
       match Clode.request env prompt with
       | Error _ -> None
@@ -151,8 +172,8 @@ Please output exactly the text that needs to replace the extension node. Do not 
           (Some
              [
                `CodeAction
-                 (Linol_eio.CodeAction.create ~edit
-                    ~title:"Replace by Claude oupput" ());
+                 (Linol_eio.CodeAction.create ~edit ~kind:Refactor
+                    ~title:"Replace by Claude output" ());
              ]
             : Linol_eio.CodeActionResult.t)
   end
