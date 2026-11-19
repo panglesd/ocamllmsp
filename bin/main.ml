@@ -17,13 +17,7 @@
 
 module Lsp = Linol.Lsp
 
-type state_after_processing = unit
-
-let process_some_input_file (_file_contents : string) : state_after_processing =
-  ()
-
-let diagnostics (_state : state_after_processing) : Lsp.Types.Diagnostic.t list
-    =
+let diagnostics _state : Lsp.Types.Diagnostic.t list =
   let range =
     let start = Linol_eio.Position.create ~character:2 ~line:1 in
     let end_ = Linol_eio.Position.create ~character:6 ~line:1 in
@@ -45,13 +39,14 @@ let diagnostics (_state : state_after_processing) : Lsp.Types.Diagnostic.t list
 class lsp_server ~env ~(sw : Eio.Switch.t) =
   object (self)
     inherit Linol_eio.Jsonrpc2.server as super
+    method! config_completion = Some (Linol_eio.CompletionOptions.create ())
 
     method! config_modify_capabilities capabilities =
       let capabilities = super#config_modify_capabilities capabilities in
       { capabilities with definitionProvider = Some (`Bool true) }
 
     (* one env per document *)
-    val buffers : (Lsp.Types.DocumentUri.t, state_after_processing) Hashtbl.t =
+    val buffers : (Lsp.Types.DocumentUri.t, string) Hashtbl.t =
       Hashtbl.create 32
 
     method spawn_query_handler f = Linol_eio.spawn ~sw f
@@ -63,9 +58,8 @@ class lsp_server ~env ~(sw : Eio.Switch.t) =
     *)
     method private _on_doc ~(notify_back : Linol_eio.Jsonrpc2.notify_back)
         (uri : Lsp.Types.DocumentUri.t) (contents : string) =
-      let new_state = process_some_input_file contents in
-      Hashtbl.replace buffers uri new_state;
-      let diags = diagnostics new_state in
+      Hashtbl.replace buffers uri contents;
+      let diags = diagnostics () in
       notify_back#send_diagnostic diags
 
     (* We now override the [on_notify_doc_did_open] method that will be called
@@ -107,6 +101,60 @@ Please output in LSP json format the answer to the query, without anything else 
           let json = Yojson.Safe.from_string res in
           let res = Linol_eio.Locations.t_of_yojson json in
           Some res
+
+    method config_code_action_provider = `Bool true
+
+    method! on_req_code_action ~notify_back:_ ~id:_
+        (c : Linol_eio.CodeActionParams.t) =
+      let range = c.range in
+      let uri = c.textDocument.uri in
+      let text = Hashtbl.find buffers uri in
+      let doc =
+        let open Linol_eio in
+        Lsp.Text_document.make ~position_encoding:positionEncoding
+          (DidOpenTextDocumentParams.create
+             ~textDocument:
+               (TextDocumentItem.create ~languageId:"something" ~uri ~version:0
+                  ~text))
+      in
+      let start, end_ = Lsp.Text_document.absolute_range doc range in
+      let extracted_text = String.sub text start (end_ - start) in
+      let claude_output =
+        let prompt =
+          Format.sprintf
+            {|Hello AI. The user has triggered the following request: %s.
+
+The buffer has content:
+
+```ocaml
+"%s
+```
+
+Please output exactly the text that needs to replace the extension node. Do not wrap it in markdown code block.|}
+            extracted_text text
+        in
+        Clode.request env prompt
+      in
+      match claude_output with
+      | Error _ -> None
+      | Ok claude_output ->
+          let edit =
+            Linol_eio.WorkspaceEdit.create
+              ~changes:
+                [
+                  ( uri,
+                    [ Linol_eio.TextEdit.create ~newText:claude_output ~range ]
+                  );
+                ]
+              ()
+          in
+          (Some
+             [
+               `CodeAction
+                 (Linol_eio.CodeAction.create ~edit
+                    ~title:"Replace by Claude oupput" ());
+             ]
+            : Linol_eio.CodeActionResult.t)
   end
 
 (* Main code
