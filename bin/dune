@@ -1,0 +1,4 @@
+(executable
+ (public_name ocamllmsp)
+ (name main)
+ (libraries ocamllmsp linol linol-eio eio eio_main))
