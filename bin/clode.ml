@@ -1,8 +1,10 @@
 open Claude
 
 let key = Sys.getenv "anthropic_key"
+let print_prompt p = Format.eprintf "Sending prompt: %s\n\n%!" p
 
 let request env prompt =
+  print_prompt prompt;
   let client =
     let auth = Claude.Transport.Api_key key in
     Claude_eio.create ~auth ~net:(Eio.Stdenv.net env)
@@ -38,6 +40,7 @@ let list_schema =
     ]
 
 let request_list env prompt =
+  print_prompt prompt;
   let client =
     let auth = Claude.Transport.Api_key key in
     Claude_eio.create ~auth ~net:(Eio.Stdenv.net env)

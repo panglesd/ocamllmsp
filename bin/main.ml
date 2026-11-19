@@ -69,7 +69,7 @@ class lsp_server ~env ~(sw : Eio.Switch.t) =
           {|Hello AI. The user has requested a review for the file %s, through the "diagnostics" lsp request. The buffer has content:
 
 ```ocaml
-"%s
+%s
 ```
 
 Please output in LSP json format the answer to the query, without anything else in the response.|}
@@ -107,7 +107,7 @@ Please output in LSP json format the answer to the query, without anything else 
           {|Hello AI. The user has cursor at position %s and called the "definition" lsp request. The buffer %s has content:
 
 ```ocaml
-"%s
+%s
 ```
 
 Please output in LSP json format the answer to the query, without anything else in the response. Do not wrap it in Markdown code block as I'm parsing the answer as json directly.|}
@@ -148,7 +148,7 @@ Please output in LSP json format the answer to the query, without anything else 
 The buffer has content:
 
 ```ocaml
-"%s
+%s
 ```
 
 Please output exactly the text that needs to replace the extension node. Do not wrap it in markdown code block.|}
